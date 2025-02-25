@@ -92,7 +92,7 @@ def nonlinear_triangulation(P1, P2, points1, points2, X_init):
         print("🚨 Warning: Some 3D points have negative depth! Check triangulation.")
 
 
-    result = least_squares(reprojection_error, X_init_flat, args=(P1, P2, points1, points2), method='lm', max_nfev=15, xtol=1e-4, ftol=1e-4, verbose=1)
+    result = least_squares(reprojection_error, X_init_flat, args=(P1, P2, points1, points2), method='trf', max_nfev=15, xtol=1e-4, ftol=1e-4, verbose=1)
 
     # Compute final reprojection error after optimization
     final_X = result.x.reshape((-1, 3))
