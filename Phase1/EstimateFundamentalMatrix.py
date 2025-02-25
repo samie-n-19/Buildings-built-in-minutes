@@ -33,7 +33,8 @@ def estimate_fundamental_matrix(points1, points2):
     for i in range(len(points1)):
         x1, y1, _ = normalized_points1[i]  # Homogeneous coordinates
         x2, y2, _ = normalized_points2[i]
-        A[i] = [x1*x2, x1*y2, x1, y1*x2, y1*y2, y1, x2, y2, 1]
+        # A[i] = [x1*x2, x1*y2, x1, y1*x2, y1*y2, y1, x2, y2, 1]
+        A[i] = [x1*x2, x2*y1, x2, y2*x1, y2*y1, y2, x1, y1, 1]
 
     # Compute F using SVD
     _, _, V = np.linalg.svd(A)
@@ -45,11 +46,11 @@ def estimate_fundamental_matrix(points1, points2):
     F = U @ np.diag(S) @ Vt
 
     # Transform back to original coordinate system
-    F = T1.T @ F @ T2
+    F = T2.T @ F @ T1
 
     # Normalize last element to 1
-    if F[2, 2] != 0:
-        F /= F[2, 2]
+    if F[2, 2] > 1e-7:
+        F = F / F[2, 2]
     return F
 
 
