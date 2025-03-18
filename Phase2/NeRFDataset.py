@@ -8,6 +8,7 @@ import torchvision.transforms as transforms
 
 class NeRFDataset(Dataset):
     def __init__(self, root_dir, split="train"):
+    def __init__(self, root_dir, split="train"):
         """
         Args:
             root_dir (str): Path to the dataset directory.
@@ -20,6 +21,7 @@ class NeRFDataset(Dataset):
         transforms_path = os.path.join(root_dir, f"transforms_{split}.json")
         if not os.path.exists(transforms_path):
             raise FileNotFoundError(f"Transforms file not found: {transforms_path}")
+
 
         with open(transforms_path, "r") as f:
             self.data = json.load(f)
@@ -46,6 +48,9 @@ class NeRFDataset(Dataset):
             image (torch.Tensor): Image tensor [3, H, W].
             pose (torch.Tensor): Camera-to-world matrix [4, 4].
             camera_info (dict): Dictionary containing focal length, width, and height.
+            image (torch.Tensor): Image tensor [3, H, W].
+            pose (torch.Tensor): Camera-to-world matrix [4, 4].
+            camera_info (dict): Dictionary containing focal length, width, and height.
         """
         frame = self.frames[idx]
         img_path = os.path.join(self.root_dir, frame["file_path"] + ".png")
@@ -55,6 +60,12 @@ class NeRFDataset(Dataset):
         image = Image.open(img_path).convert("RGB")
         image = self.transform(image)
 
+        image = Image.open(img_path).convert("RGB")
+        image = self.transform(image)
+
+        pose = torch.tensor(frame["transform_matrix"], dtype=torch.float32)
+        
+        # Calculate focal length based on camera angle and image size
         pose = torch.tensor(frame["transform_matrix"], dtype=torch.float32)
         
         # Calculate focal length based on camera angle and image size
@@ -68,10 +79,20 @@ class NeRFDataset(Dataset):
         }
 
         return image, pose, camera_info
+        
+        # Create camera info dictionary
+        camera_info = {
+            'focal_length': focal_length,
+            'width': self.img_size[0],
+            'height': self.img_size[1]
+        }
+
+        return image, pose, camera_info
 
     def get_camera_intrinsics(self):
         """
         Returns:
+            camera_matrix (torch.Tensor): [3, 3] intrinsic matrix.
             camera_matrix (torch.Tensor): [3, 3] intrinsic matrix.
         """
         focal_length = 0.5 * self.img_size[0] / np.tan(0.5 * self.camera_angle_x)

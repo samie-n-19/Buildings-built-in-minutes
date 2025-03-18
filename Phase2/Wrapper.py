@@ -4,6 +4,11 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import imageio
+import os
+import torch
+import torch.nn.functional as F
+import numpy as np
+import imageio
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 from NeRFDataset import NeRFDataset
@@ -34,6 +39,17 @@ def loadDataset(data_path, mode):
         img, pose, _ = dataset[i]
         images.append(img)
         poses.append(pose)
+    
+    # Extract camera info from the dataset
+    focal_length = 0.5 * dataset.img_size[0] / np.tan(0.5 * dataset.camera_angle_x)
+    camera_info = {
+        'focal_length': focal_length,
+        'width': dataset.img_size[0],
+        'height': dataset.img_size[1]
+    }
+    
+    return camera_info, images, poses
+
     
     # Extract camera info from the dataset
     focal_length = 0.5 * dataset.img_size[0] / np.tan(0.5 * dataset.camera_angle_x)
@@ -85,7 +101,47 @@ def PixelToRay(camera_info, pose, pixel_position, args):
     translation = pose[:3, 3].view(1, 3).expand_as(ray_directions).to(device)
     ray_origins = translation
     
+    """
+    Convert specific pixel coordinates to ray origins and directions.
+    
+    Input:
+        camera_info: Dictionary containing focal length, width, height
+        pose: Camera pose in world frame (single 4x4 transformation matrix)
+        pixel_position: Tensor of shape [N, 2] containing pixel coordinates (x, y)
+        args: Additional arguments
+    
+    Outputs:
+        ray_origins: Origins of rays in world space
+        ray_directions: Directions of rays in world space
+    """
+    focal_length = camera_info['focal_length']
+    width = camera_info['width']
+    height = camera_info['height']
+    
+    # Extract pixel coordinates
+    pixels_x, pixels_y = pixel_position[:, 0], pixel_position[:, 1]
+    
+    # Calculate normalized device coordinates
+    x = (pixels_x - width / 2) / focal_length
+    y = -(pixels_y - height / 2) / focal_length
+    
+    # Create ray directions in camera space
+    ray_dirs_camera = torch.stack([x, y, -torch.ones_like(x)], dim=-1).to(device)
+    
+    # Transform ray directions to world space
+    rotation = pose[:3, :3].to(device)
+    ray_directions = torch.matmul(ray_dirs_camera, rotation.T)
+    
+    # Normalize ray directions
+    ray_directions = ray_directions / torch.norm(ray_directions, dim=-1, keepdim=True)
+    
+    # Ray origins are the camera position in world coordinates
+    translation = pose[:3, 3].view(1, 3).expand_as(ray_directions).to(device)
+    ray_origins = translation
+    
     return ray_origins, ray_directions
+
+
 
 def generateBatch(images, poses, camera_info, args):
     H, W = images[0].shape[1:]
@@ -94,6 +150,7 @@ def generateBatch(images, poses, camera_info, args):
         img_idx = np.random.randint(0, len(images))
         i = np.random.randint(0, H)
         j = np.random.randint(0, W)
+        pixel = torch.tensor([[j, i]], dtype=torch.float32).to(device)
         pixel = torch.tensor([[j, i]], dtype=torch.float32).to(device)
         ray_o, ray_d = PixelToRay(camera_info, poses[img_idx], pixel, args)
         rays_origin.append(ray_o[0])
@@ -140,6 +197,8 @@ def render(model, rays_origin, rays_direction, args, stratified=True):
 
 def loss(gt, pred):
     return F.mse_loss(pred, gt)
+def loss(gt, pred):
+    return F.mse_loss(pred, gt)
 
 def train(images, poses, camera_info, model, args):
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lrate)
@@ -149,8 +208,15 @@ def train(images, poses, camera_info, model, args):
     model.train()
 
     for i in tqdm(range(args.max_iters)):
+    model.train()
+
+    for i in tqdm(range(args.max_iters)):
         rays_o, rays_d, gt_colors = generateBatch(images, poses, camera_info, args)
         rays_o, rays_d, gt_colors = rays_o.to(device), rays_d.to(device), gt_colors.to(device)
+
+        rgb_pred = render(model, rays_o, rays_d, args, stratified=True)
+        loss_val = F.mse_loss(gt_colors, rgb_pred)
+
 
         rgb_pred = render(model, rays_o, rays_d, args, stratified=True)
         loss_val = F.mse_loss(gt_colors, rgb_pred)
@@ -160,8 +226,17 @@ def train(images, poses, camera_info, model, args):
         optimizer.step()
         scheduler.step()
 
+        scheduler.step()
+
         if i % 10 == 0:
             writer.add_scalar("train_loss", loss_val.item(), i)
+            wandb.log({"train_loss": loss_val.item()}, step=i)
+
+        if i % args.save_ckpt_iter == 0:
+            ckpt_path = os.path.join(args.checkpoint_path, f"nerf_{i}.pth")
+            torch.save(model.state_dict(), ckpt_path)
+            wandb.save(ckpt_path)
+
             wandb.log({"train_loss": loss_val.item()}, step=i)
 
         if i % args.save_ckpt_iter == 0:
@@ -216,6 +291,23 @@ def test(images, poses, camera_info, model, args):
 
             # Save rendered image
             output_img = (rgb_image.permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
+            gt_img = images[idx].to(device)
+            ray_o = all_ray_origins[idx]
+            ray_d = all_ray_directions[idx]
+            H, W = image_shapes[idx]
+
+            rgb_chunks = []
+            chunk_size = 8192
+
+            for i in range(0, ray_o.shape[0], chunk_size):
+                rgb_chunk = render(model, ray_o[i:i+chunk_size], ray_d[i:i+chunk_size], args, stratified=False)
+                rgb_chunks.append(rgb_chunk)
+
+            rgb_pred = torch.cat(rgb_chunks, dim=0)
+            rgb_image = rgb_pred.reshape(H, W, 3).permute(2, 0, 1)
+
+            # Save rendered image
+            output_img = (rgb_image.permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
             imageio.imwrite(os.path.join(args.images_path, f"rendered_{idx}.png"), output_img)
 
             # Compute metrics
@@ -251,6 +343,7 @@ def configParser():
     parser.add_argument('--lrate', default=5e-4, type=float, help="training learning rate")
     parser.add_argument('--n_pos_freq', default=10, type=int, help="number of positional encoding frequencies for position")
     parser.add_argument('--n_dirc_freq', default=4, type=int, help="number of positional encoding frequencies for viewing direction")
+    parser.add_argument('--n_rays_batch', default=32*32, type=int, help="number of rays per batch")
     parser.add_argument('--n_rays_batch', default=32*32, type=int, help="number of rays per batch")
     parser.add_argument('--n_sample', default=400, type=int, help="number of sample per ray")
     parser.add_argument('--max_iters', default=500000, type=int, help="number of max iterations for training")
