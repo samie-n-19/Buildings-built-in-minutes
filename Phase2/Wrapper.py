@@ -206,10 +206,7 @@ def train(images, poses, camera_info, model, args):
     writer = SummaryWriter(args.logs_path)
     os.makedirs(args.checkpoint_path, exist_ok=True)
     model.train()
-
-    for i in tqdm(range(args.max_iters)):
-    model.train()
-
+    
     for i in tqdm(range(args.max_iters)):
         rays_o, rays_d, gt_colors = generateBatch(images, poses, camera_info, args)
         rays_o, rays_d, gt_colors = rays_o.to(device), rays_d.to(device), gt_colors.to(device)

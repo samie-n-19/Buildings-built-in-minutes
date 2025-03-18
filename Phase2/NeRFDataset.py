@@ -8,7 +8,6 @@ import torchvision.transforms as transforms
 
 class NeRFDataset(Dataset):
     def __init__(self, root_dir, split="train"):
-    def __init__(self, root_dir, split="train"):
         """
         Args:
             root_dir (str): Path to the dataset directory.
