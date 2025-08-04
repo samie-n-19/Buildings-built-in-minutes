@@ -73,7 +73,6 @@ The final camera poses and 3D points are also refined through Bundle Adjustment.
 
 For further details, refer to the **Report.pdf** included in the submission.  
 
-## ------------------------------------  PHASE 2  -----------------------------------------------------------
 
 # Phase 2: NeRF Implementation
 
