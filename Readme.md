@@ -73,3 +73,124 @@ The final camera poses and 3D points are also refined through Bundle Adjustment.
 
 For further details, refer to the **Report.pdf** included in the submission.  
 
+## ------------------------------------  PHASE 2  -----------------------------------------------------------
+
+# Phase 2: NeRF Implementation
+
+### Code Structure
+```
+Phase2/
+├── NeRFModel.py
+├── NeRFDataset.py
+└── Wrapper.py
+
+```
+
+### File Descriptions
+
+- **NeRFModel.py:** Defines the neural network architecture (MLP-based) for NeRF. Includes positional encoding (PE) and a simplified model without positional encoding.
+
+- **NeRFDataset.py:** Custom PyTorch dataset loader that reads NeRF-compatible datasets, extracting camera poses, images, and camera intrinsics from JSON files.
+
+- **Wrapper.py:** Main training and testing script which:
+  - Implements ray generation, batch processing, and sampling strategies (stratified and uniform).
+  - Defines rendering and metric computation (PSNR and SSIM).
+  
+### File Tree
+```
+Group11_p2.zip
+│
+├── Phase2
+│   ├── Wrapper.py
+│   ├── NeRFModel.py
+│   ├── NeRFDataset.py
+│   ├── NeRF_lego_with_pe.gif
+│   ├── NeRF_lego_without_pe.gif
+│   ├── NeRF_ship_with_pe.gif
+│   ├── NeRF_ship_without_pe.gif
+|   └── NeRF_Protein_shake.gif
+├── README.md
+└── Report.pdf
+
+```
+
+## Dependencies
+- Python 3.x
+- PyTorch
+- torchvision
+- numpy
+- WandB (for logging)
+- imageio
+- tqdm
+- torchmetrics
+
+```bash
+pip install torch torchvision numpy imageio wandb torchmetrics tqdm
+```
+
+## Installation
+
+
+
+## Dataset Structure
+The datasets are from the [NeRF Synthetic Dataset](https://github.com/bmild/nerf#synthetic-data), and should have the following structure:
+The Extra Credit Data set is uploaded in this link https://wpi0-my.sharepoint.com/:f:/g/personal/snaukudkar_wpi_edu/Eqqr71VI2n1AlbKXxXxYxHEBroBwyfZ1MSl3SHbY531faA?e=aGZYoC
+
+```
+nerf_synthetic/
+├── lego/
+│   ├── transforms_train.json
+│   ├── transforms_val.json
+│   └── transforms_test.json
+├── ship/
+│   └── ...
+└── protein_shake/
+    └── transforms_train.json
+```
+
+## Training
+To train the NeRF model, run the following command:
+
+```bash
+python Wrapper.py --data_path "../archive/nerf_synthetic/lego" \
+                  --mode "train" \
+                  --checkpoint_path "./checkpoints/lego" \
+                  --max_iters 500000
+```
+
+Replace `data_path`, `checkpoint_path`, and `max_iters` with your specific dataset and desired configuration.
+
+## Testing
+To test the NeRF model and generate novel view images, run:
+
+This is for Ship without pe 
+
+```bash
+
+python Wrapper.py --data_path "../archive/nerf_synthetic/ship" \
+                  --mode "test" \
+                  --images_path "./images/ship_without_PE/" \
+                  --checkpoint_path "/path/to/checkpoint/ship_withoutPE/" \
+                  --max_iters 339000
+
+```
+
+Repeat this process similarly for other datasets (lego and protein_shake) as provided, just change the data_path, image_path, checkpoint_path, and Max Iteration
+and get all the chekpoints from this onedrive link https://wpi0-my.sharepoint.com/:f:/g/personal/snaukudkar_wpi_edu/Eqqr71VI2n1AlbKXxXxYxHEBroBwyfZ1MSl3SHbY531faA?e=aGZYoC
+
+For Ship with pe --max_iters 299000
+For lego with pe --max_iters 288000
+For lego without pe --max_iters 181000
+For Protein shake --max_iters 351000
+
+## Generating Results and Metrics
+- Rendered test images will be stored in the specified `images_path`.
+- Computes PSNR and SSIM values, which are logged on Weights & Biases.
+
+## Logging and Monitoring
+- Integrated logging with [Weights & Biases (wandb)](https://wandb.ai/). Metrics logged:
+  - Training Loss
+  - Test PSNR and SSIM scores
+
+## Creating GIF Outputs
+After test rendering, the GIF will be automatically generated.
