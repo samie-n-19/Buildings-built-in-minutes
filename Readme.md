@@ -1,4 +1,4 @@
-# Structure from Motion (SfM) - Phase 1  
+# Phase 1: Structure from Motion (SfM)
 
 This repository contains the implementation of a classical Structure from Motion (SfM) pipeline, which reconstructs a 3D scene from multiple 2D images. The project follows a structured approach, including feature matching, epipolar geometry, triangulation, PnP, and Bundle Adjustment to refine the reconstruction.  
 
